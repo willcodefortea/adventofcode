@@ -1,67 +1,67 @@
-
-# This whole process could be sped up by parsing each IP into
-# distinct blocks, this works but is inefficient.
-
-
-def within_hyernet_sequence(ip, index):
-    # First check left for [
-    for i in xrange(index, 0, -1):
-        if ip[i] == ']':
-            return False
-        if ip[i] == '[':
-            break
-    else:
-        return False
-    # Then check right for ]
-    for i in xrange(index, len(ip)):
-        if ip[i] == '[':
-            return False
-        if ip[i] == ']':
-            break
-    else:
-        return False
-    return True
+import re
 
 
 def supports_tls(ip):
     has_abba = False
+    standard, hypernet = parse_ip(ip)
 
-    for i in xrange(len(ip) - 3):
-        diffreent_chars = ip[i] != ip[i+1]
-        mirrored = ip[i:i+2] == ip[i+3:i+1:-1]
-        if diffreent_chars and mirrored:
-            if within_hyernet_sequence(ip, i):
-                return False
-            has_abba = True
+    def test_abba(chunk):
+        for i in xrange(len(chunk) - 3):
+            diffreent_chars = chunk[i] != chunk[i+1]
+            mirrored = chunk[i:i+2] == chunk[i+3:i+1:-1]
+            if diffreent_chars and mirrored:
+                return True
+        return False
+
+    within_hyernet = sum(test_abba(chunk) for chunk in hypernet) > 0
+    if within_hyernet:
+        return False
+
+    has_abba = sum(test_abba(chunk) for chunk in standard) > 0
     return has_abba
 
 
 def supports_ssl(ip):
-    bab_codes = []
     expected_bab_codes = []
+    standard, hypernet = parse_ip(ip)
 
-    def is_aba(code):
-        different_chars = code[0] == code[2] and code[0] != code[1]
-        return different_chars and not within_hyernet_sequence(ip, i)
+    for chunk in standard:
+        for i in xrange(len(chunk) - 2):
+            if chunk[i] != chunk[i + 1] and chunk[i] == chunk[i + 2]:
+                expected_bab_code = '{0}{1}{0}'.format(chunk[i + 1], chunk[i])
+                expected_bab_codes.append(expected_bab_code)
 
-    def is_bab(code):
-        different_chars = code[0] == code[2] and code[0] != code[1]
-        return different_chars and within_hyernet_sequence(ip, i)
+    for bab in expected_bab_codes:
+        for chunk in hypernet:
+            if bab in chunk:
+                return True
+    return False
 
-    for i in xrange(len(ip) - 2):
-        code = ip[i:i+3]
-        if is_aba(code):
-            expected_bab_code = '{0}{1}{0}'.format(code[1], code[0])
-            expected_bab_codes.append(expected_bab_code)
-            continue
-        if is_bab(code):
-            bab_codes.append(code)
-            continue
 
-    return sum(expected in bab_codes for expected in expected_bab_codes) > 0
+hypernet_re = re.compile(r'\[([a-zA-Z]+)\]')
+standard_re = re.compile(r'(?:^|\])([a-zA-Z]+)(?:$|\[)')
+
+
+def parse_ip(ip):
+    """Split an IP into hypernet sequences."""
+    hypernet_chunks = []
+    standard_chunks = []
+
+    hypernet_chunks = [
+        chunk
+        for chunk in hypernet_re.findall(ip)
+    ]
+
+    standard_chunks = [
+        chunk
+        for chunk in standard_re.findall(ip)
+    ]
+
+    return standard_chunks, hypernet_chunks
 
 
 def test_part_1():
+    assert parse_ip('abba[mnop]qrst') == (['abba', 'qrst'], ['mnop', ], )
     assert supports_tls('abba[mnop]qrst')
     assert not supports_tls('abcd[bddb]xyyx')
     assert not supports_tls('aaaa[qwer]tyui')
