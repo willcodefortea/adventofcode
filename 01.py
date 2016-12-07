@@ -28,7 +28,7 @@ def test_part_1():
 def part_1(data):
     """Follow instructions and see how many blocks away we are."""
     steps = [0, 0, 0, 0, ]  # North, East, South, West
-    facing = 0  # Start facing north
+    facing = NORTH
 
     for step in data:
         facing = rotation(facing, step[0])
@@ -47,7 +47,7 @@ def test_part_2():
 def part_2(data):
     """Search for the first location visited twice."""
     visited = [[0, 0], ]  # Start at the center
-    facing = 0  # Start facing north
+    facing = NORTH
 
     for step in data:
         facing = rotation(facing, step[0])
