@@ -44,20 +44,7 @@ standard_re = re.compile(r'(?:^|\])([a-zA-Z]+)(?:$|\[)')
 
 def parse_ip(ip):
     """Split an IP into hypernet sequences."""
-    hypernet_chunks = []
-    standard_chunks = []
-
-    hypernet_chunks = [
-        chunk
-        for chunk in hypernet_re.findall(ip)
-    ]
-
-    standard_chunks = [
-        chunk
-        for chunk in standard_re.findall(ip)
-    ]
-
-    return standard_chunks, hypernet_chunks
+    return standard_re.findall(ip), hypernet_re.findall(ip)
 
 
 def test_part_1():
