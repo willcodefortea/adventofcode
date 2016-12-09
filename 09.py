@@ -1,6 +1,15 @@
 from cStringIO import StringIO
 
 
+def extract_marker(stream):
+    marker_char = stream.read(1)
+    marker = ''
+    while marker_char != ')':
+        marker += marker_char
+        marker_char = stream.read(1)
+    return map(int, marker.split('x'))
+
+
 def decompress(compressed, use_sub_markers=False):
     # Convert the string to a file like object
     compressed = StringIO(compressed)
@@ -14,14 +23,7 @@ def decompress(compressed, use_sub_markers=False):
         clear = char
 
         if char == '(':
-            # Extract the marker
-            marker_char = compressed.read(1)
-            marker = ''
-            while marker_char != ')':
-                marker += marker_char
-                marker_char = compressed.read(1)
-            length, multiple = map(int, marker.split('x'))
-
+            length, multiple = extract_marker(compressed)
             clear = compressed.read(length)
             # Expand any child compression if there is any
             if '(' in clear and use_sub_markers:
@@ -29,6 +31,31 @@ def decompress(compressed, use_sub_markers=False):
             clear = clear * multiple
         decompressed += clear
     return decompressed
+
+
+def decompressed_length(compressed, use_sub_markers=False):
+    """Don't bother keeping track of the decompression, just the resulting size.
+
+    This takes execution time of part2 from ~40s to ~0.01s.
+    """
+    size = 0
+    compressed = StringIO(compressed)
+
+    while True:
+        char = compressed.read(1)
+        if not char:
+            break
+        length = 1
+
+        if char == '(':
+            chunk_length, multiple = extract_marker(compressed)
+            chunk = compressed.read(chunk_length)
+            # Expand any child compression if there is any
+            if '(' in chunk and use_sub_markers:
+                chunk_length = decompressed_length(chunk, use_sub_markers)
+            length = chunk_length * multiple
+        size += length
+    return size
 
 
 def test_part_1():
@@ -41,7 +68,7 @@ def test_part_1():
 
 
 def part_1(compressed):
-    return len(decompress(compressed))
+    return decompressed_length(compressed)
 
 
 def test_part_2():
@@ -56,7 +83,7 @@ def test_part_2():
 
 
 def part_2(compressed):
-    return len(decompress(compressed, True))
+    return decompressed_length(compressed, True)
 
 
 def main():
@@ -65,11 +92,11 @@ def main():
 
     test_part_1()
     answer = part_1(data)
-    print 'The decompressed length of the file is %s.' % answer
+    print 'Decompressed length of the file is %s.' % answer
 
     test_part_2()
     answer = part_2(data)
-    print 'The decompressed length of the file using the improved format is:\n%s' % answer
+    print 'Decompressed length of the file (improved format) is %s.' % answer
 
 if __name__ == '__main__':
     main()
