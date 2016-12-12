@@ -18,50 +18,63 @@ def _int_or_registry_value(registry, key):
 
 
 def copy(registry, source, destintion):
+    """Copy either a value or a registry value to another registry."""
     value = _int_or_registry_value(registry, source)
     registry[destintion] = value
 
 
 def increase(registry, destintion):
+    """Increase a registry value."""
     registry[destintion] += 1
 
 
 def decrease(registry, destintion):
+    """Decrease a registry value."""
     registry[destintion] -= 1
 
 
 def jump(registry, key, amount):
+    """Jump to a previous instruction if the flag is set."""
     value = _int_or_registry_value(registry, key)
     amount = int(amount)
     if value != 0:
         registry['instruction'] += amount
 
 
+OPERATIONS = {
+    'cpy': copy,
+    'inc': increase,
+    'dec': decrease,
+    'jnz': jump,
+}
+
+
 def execute_instruction(instruction, registry):
+    """Parse the instruction and perform the required operation."""
     chunks = instruction.split(' ')
     name = chunks[0]
+    arguments = chunks[1:]
 
-    if name == 'cpy':
-        method = copy
-    elif name == 'inc':
-        method = increase
-    elif name == 'dec':
-        method = decrease
-    elif name == 'jnz':
-        method = jump
-    else:
-        raise Exception('Unknown instruction "%s".' % instruction)
+    try:
+        operation = OPERATIONS[name]
+    except KeyError:
+        raise Exception('Unknown instruction "%s".' % name)
 
+    # Keep track of the previous instruction index in case the operation
+    # changes it.
     prev_instruction_index = registry['instruction']
-    method(registry, *chunks[1:])
+
+    # Perform the operation with any remaining arguments from the instruction
+    operation(registry, *arguments)
 
     if prev_instruction_index == registry['instruction']:
-        # The instruction did NOT jump to a different location, advance
+        # The instruction did NOT jump to a different location, advance it
         # ourselves
         registry['instruction'] += 1
 
 
 def execute_instructions(instructions, registry):
+    """Continually perform instructions until we run out."""
     while True:
         try:
             instruction = instructions[registry['instruction']]
