@@ -5,7 +5,7 @@ Move = namedtuple('Move', 'old_floor,new_floor,items')
 
 
 class State(object):
-    def __init__(self, state, elevator=0, depth=1, moves=None):
+    def __init__(self, state, elevator=0, depth=0, moves=None):
         self.state = state
         self.depth = depth
         self.elevator = elevator
@@ -51,11 +51,14 @@ class State(object):
 
         The result is clamped between 0 and 1.
         """
-        max_cost = sum(len(f) for f in self.state) * (len(self.state) - 1)
-        total = 0
-        for index, floor in enumerate(self.state[::-1]):
-            total += index * len(floor)
-        return 1.0 * total / max_cost
+        if self._cost is None:
+            max_cost = sum(len(f) for f in self.state) * (len(self.state) - 1)
+            total = 0
+            for index, floor in enumerate(self.state[::-1]):
+                total += index * len(floor)
+            self._cost = 1.0 * total / max_cost
+        return self._cost
+    _cost = None
 
     @property
     def is_valid(self):
@@ -126,16 +129,22 @@ def find_lowest_path(state):
     """
     Find the shortest allowed route to move items to the 4th floor.
 
-    This is *not* fast as it looks at each possible state in turn and
-    performs each possible move on each state. Instead rank by the cost
-    function and the number of steps? Follow low cost steps first before
-    attempting other routes?
+    We explore routes that are most likely to be correct based on the
+    state's cost and the number of steps taken (as that's what we're
+    seeking to minimize).
     """
     visited = set()
     states = [state, ]
+    shortest_depth = None
     while True:
         new_states = []
+        lowest_cost = states[0].cost
         for state in states:
+            if state.cost > lowest_cost:
+                # No point looking at this or any following states just
+                # yet.
+                break
+
             for move in state.available_moves:
                 new_state = state.clone()
                 new_state.apply_move(move)
@@ -146,16 +155,34 @@ def find_lowest_path(state):
                 visited.add(new_state.key)
 
                 if new_state.is_valid:
-                    # We've found a valid state, explore it
-                    # next time
+                    # We've found a valid state, either explore it next
+                    # time or throw it away
                     if new_state.cost == 0:
-                        # We've found the first instance of reaching the
-                        # top! Huzzah.
-                        return state.depth
+                        if shortest_depth is None or new_state.depth < shortest_depth:
+                            shortest_depth = new_state.depth
+                        # We've found a solution and don't need to continue
+                        # exploring this state
+                        continue
+
+                    if shortest_depth and new_state.depth >= shortest_depth:
+                        # Ignore this state, we don't need it
+                        continue
+
+                    # This state needs further exploration, add it for
+                    # next time.
                     new_states.append(new_state)
 
-        # Update our states
-        states = sorted(new_states, key=lambda state: state.cost)
+        # Update our states for checking.
+        # Sort by the cost of the state and the number of steps so we evaluate
+        # states most likely to be correct first.
+        states = sorted(
+            new_states,
+            key=lambda state: (state.cost, state.depth)
+        )
+        if not states:
+            # We have no more states to explore
+            break
+    return shortest_depth
 
 
 def part_1(state):
