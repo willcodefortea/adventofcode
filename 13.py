@@ -80,7 +80,7 @@ def find_shortest_path(magic_number, destination):
 
 def distinct_locations(magic_number, steps):
     """How many distinct locations can we reach in n steps."""
-    positions = set((1, 1))  # Include the starting locatio
+    positions = set((1, 1))  # Include the starting locatio
     paths = [
         [(1, 1), ]
     ]
