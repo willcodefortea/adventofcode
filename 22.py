@@ -1,5 +1,6 @@
 from collections import namedtuple
 from copy import deepcopy
+from hashlib import md5
 
 
 class Node(object):
@@ -10,7 +11,10 @@ class Node(object):
         self.source = source
 
     def __repr__(self):
-        return 'Node<(%s,%s) %sT %sT>' % (self.pos[0], self.pos[1], self.size, self.used)
+        contains_data = 'X' if self.source else '0'
+        return '<(%s,%s) %2sT %2sT %s>' % (
+            self.pos[0], self.pos[1], self.used, self.size, contains_data
+        )
 
     @property
     def avail(self):
@@ -66,21 +70,29 @@ def get_node(data, x, y, grid_width):
 
 
 def available_moves(data, size):
-    """Find all the available moves on the data set."""
+    """Find all the available moves on the data set.
+
+    Any viable data swaps that can be performed between two neighbours
+    is a valid move.
+    """
     neighbours = ((1, 0), (0, 1), (-1, 0), (0, -1), )
-    for x in range(size[0]):
-        for y in range(size[1]):
+    for x in range(size[0] + 1):
+        for y in range(size[1] + 1):
             node = get_node(data, x, y, size[0])
+
+            if node.used == 0:
+                # No data to move, skip it.
+                continue
 
             for deltas in neighbours:
                 new_x, new_y = x + deltas[0], y + deltas[1]
 
                 if new_x < 0 or new_x > size[0] or new_y < 0 or new_y > size[1]:
+                    # We're out of bounds, skip it.
                     continue
                 dest = get_node(data, new_x, new_y, size[0])
 
                 if dest.avail >= node.used:
-                    print x,y,new_x,new_y
                     yield (x, y), (new_x, new_y)
 
 
@@ -88,9 +100,17 @@ def cost(data, grid_width):
     for index, node in enumerate(data):
         if node.source:
             break
-    x, y = index % grid_width, index // grid_width
-    print 'cost %s, %s' % (x, y)
+    x, y = index % (grid_width + 1), index // (grid_width + 1)
+    # print x, y, index, grid_width, x + y
     return x + y
+
+
+def build_key(data):
+    """Build a unique key for a state."""
+    hasher = md5()
+    for node in data:
+        hasher.update(str(node))
+    return hasher.hexdigest()
 
 
 def shortest_path(data):
@@ -107,57 +127,61 @@ def shortest_path(data):
     # Mark our destination node so we can follow it around.
     data[grid_x].source = True
     paths = [
-        [data, 0, ],
+        [data, 0, cost(data, grid_x)],
     ]
     shortest_path_length = None
 
-    print paths[0][0]
+    seen = set()
 
     while True:
         new_paths = []
+        lowest_cost = paths[0][-1]
+        print '###', len(paths), lowest_cost
         for path in paths:
-            data, steps = path
+            data, steps, data_cost = path
+            if data_cost > lowest_cost:
+                # Don't follow just yet. Explore lowest cost items
+                # first
+                new_paths.append(path)
+                continue
 
             for move in available_moves(data, size):
-                new_data = deepcopy(data)
-                steps += 1
+                new_data = [deepcopy(n) for n in data]
 
                 origin_node = get_node(new_data, move[0][0], move[0][1], grid_x)
                 dest_node = get_node(new_data, move[1][0], move[1][1], grid_x)
 
-                print move, origin_node, dest_node, grid_x
-
                 dest_node.used += origin_node.used
                 origin_node.used = 0
 
+                key = build_key(new_data)
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                if origin_node.source:
+                    dest_node.source = True
+                    origin_node.source = False
+
                 if cost(new_data, grid_x) == 0:
+                    print 'FOUND THE SHORTEST PATH', steps
                     if not shortest_path_length or shortest_path_length > steps:
                         shortest_path_length = steps
                     continue
 
-                if shortest_path_length and steps > shortest_path_length:
+                if shortest_path_length and steps >= shortest_path_length:
                     continue
 
-                new_paths.append((new_data, steps))
-            break
+                new_paths.append((new_data, steps + 1, cost(new_data, grid_x)))
 
         paths = new_paths
-        # sorted(paths, key=lambda path: cost(path[0], grid_x))
+        sorted(paths, key=lambda path: path[-1])
 
-        for path in paths:
-            print path[0]
-
-        if paths[0][1] > 10:
-            raise Exception('failed to solve.')
         if not paths:
+            # We've extinguished all possible viable paths, we're done!
             break
 
-    return shortest_path_length
-
-
-
-
-    return shortest_path_length
+    return shortest_path_length + 1
 
 
 def test():
@@ -186,6 +210,7 @@ def main():
     print 'The number of viable pairs is %s.' % len(list(viable_pairs(data)))
     # 958 is incorrect, too high
     # 815 is incorrect, too low
+    print 'The shortest path is %s.' % shortest_path(data)
 
 if __name__ == '__main__':
     main()
